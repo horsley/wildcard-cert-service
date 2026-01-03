@@ -27,5 +27,11 @@ cat > "$CERT_DIR/info.json" << EOF
 {"notAfter":"$NOT_AFTER","domain":"$DOMAIN_CN"}
 EOF
 
+# 关键：修复文件权限，允许 nginx (非 root 用户) 读取
+# acme.sh 默认生成的私钥只有 owner 可读 (600)
+# 而 nginx 容器中的 worker 进程可能以 nginx 用户运行
+chmod 755 "$CERT_DIR"
+chmod 644 "$CERT_DIR"/*
+
 echo "Certificate info updated: $CERT_DIR/info.json"
 cat "$CERT_DIR/info.json"
