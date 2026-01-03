@@ -15,17 +15,14 @@ services:
     restart: unless-stopped
 
   web:
-    image: nginx:alpine
+    build: .
     container_name: ssl-cert-web
     expose:
       - "80"
     environment:
       - DOMAIN=${DOMAIN}
     volumes:
-      - ./html:/usr/share/nginx/html
       - ./certs:/certs:ro
-      - ./nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
-      - ./scripts/entrypoint.sh:/docker-entrypoint.d/99-config.sh:ro
     depends_on:
       acme:
         condition: service_started
