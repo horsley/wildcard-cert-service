@@ -1,0 +1,32 @@
+services:
+  acme:
+    image: neilpang/acme.sh
+    container_name: acme.sh
+    entrypoint: /scripts/acme-entrypoint.sh
+    environment:
+      - DOMAIN=${DOMAIN}
+      - CF_Token=${CF_Token}
+      - CF_Account_ID=${CF_Account_ID}
+      - CF_Zone_ID=${CF_Zone_ID}
+      - ACME_EMAIL=${ACME_EMAIL}
+    volumes:
+      - ./certs:/acme.sh
+      - ./scripts:/scripts:ro
+    restart: unless-stopped
+
+  web:
+    image: nginx:alpine
+    container_name: ssl-cert-web
+    ports:
+      - "80:80"
+    environment:
+      - DOMAIN=${DOMAIN}
+    volumes:
+      - ./html:/usr/share/nginx/html
+      - ./certs:/certs:ro
+      - ./nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./scripts/entrypoint.sh:/docker-entrypoint.d/99-config.sh:ro
+    depends_on:
+      acme:
+        condition: service_started
+    restart: unless-stopped

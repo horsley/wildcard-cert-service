@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSL Certificate Service</title>
+    <meta name="description" content="为测试环境获取域名和 SSL 证书的自助服务">
+    <link rel="stylesheet" href="style.css">
+    <script src="config.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>🔐 SSL Certificate Service</h1>
+            <p class="subtitle">为测试环境快速获取域名和 SSL 证书</p>
+        </header>
+
+        <div class="main-grid">
+            <!-- 左栏：证书下载 + 域名生成器 -->
+            <div class="column">
+                <section class="card">
+                    <h2>⬇️ 证书下载</h2>
+                    <div class="download-grid">
+                        <a href="certs/fullchain.cer" download class="download-btn">
+                            <span class="icon">📄</span>
+                            <span class="text">
+                                <strong>fullchain.cer</strong>
+                                <small>证书链（包含中间证书）</small>
+                            </span>
+                        </a>
+                        <a href="" download id="key-download" class="download-btn">
+                            <span class="icon">🔑</span>
+                            <span class="text">
+                                <strong>私钥</strong>
+                                <small>Private Key (.key)</small>
+                            </span>
+                        </a>
+                    </div>
+
+                    <h3>📋 复制 PEM 内容</h3>
+                    <div class="pem-section">
+                        <div class="pem-group">
+                            <div class="pem-header">
+                                <span>证书 (fullchain.cer)</span>
+                                <button class="copy-btn" onclick="copyPEM('cert')">复制</button>
+                            </div>
+                            <textarea id="cert-pem" readonly placeholder="加载中..."></textarea>
+                        </div>
+                        <div class="pem-group">
+                            <div class="pem-header">
+                                <span>私钥 (Private Key)</span>
+                                <button class="copy-btn" onclick="copyPEM('key')">复制</button>
+                            </div>
+                            <textarea id="key-pem" readonly placeholder="加载中..."></textarea>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="card">
+                    <h2>🛠️ 域名生成器</h2>
+                    <div class="tool-container">
+                        <div class="input-row">
+                            <div class="input-group">
+                                <label for="prefix">前缀（可选）</label>
+                                <input type="text" id="prefix" placeholder="例如：myapp">
+                            </div>
+                            <div class="input-group">
+                                <label for="ip">IP 地址</label>
+                                <input type="text" id="ip" placeholder="例如：192.168.1.100">
+                            </div>
+                            <button id="convert-btn" onclick="convertIP()">生成</button>
+                        </div>
+                        <div class="result" id="result">
+                            <span class="result-label">生成的域名：</span>
+                            <code id="generated-domain">-</code>
+                            <button class="copy-btn" onclick="copyDomain()" title="复制域名">📋</button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- 右栏：使用说明 + 证书信息 -->
+            <div class="column">
+                <section class="card">
+                    <h2>� 域名使用说明</h2>
+                    <p>本服务基于 <a href="https://sslip.io" target="_blank">sslip.io</a> 提供 IP 到域名的自动解析。</p>
+
+                    <h3>基本格式</h3>
+                    <p>将 IP 地址中的 <code>.</code> 替换为 <code>-</code>，然后拼接域名后缀：</p>
+                    <div class="example">
+                        <code>192.168.1.100</code> → <code
+                            class="highlight"><span class="domain-example">192-168-1-100</span></code>
+                    </div>
+
+                    <h3>添加前缀（Dash Prefix）</h3>
+                    <p>可以在 IP 前添加自定义前缀，方便区分不同用途：</p>
+                    <div class="example">
+                        <code class="highlight"><span class="domain-example">myapp-192-168-1-100</span></code><br>
+                        <code class="highlight"><span class="domain-example">api-server-10-0-0-50</span></code>
+                    </div>
+                </section>
+
+                <section class="card">
+                    <h2>� 证书信息</h2>
+                    <div class="cert-info">
+                        <div class="info-row">
+                            <span class="label">适用域名：</span>
+                            <code id="cert-domain">加载中...</code>
+                        </div>
+                        <div class="info-row">
+                            <span class="label">有效期至：</span>
+                            <span id="cert-expiry">加载中...</span>
+                        </div>
+                        <div class="info-row warning">
+                            <span>💡 证书过期后可再次访问本页面下载最新证书</span>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <footer>
+            <p>Powered by <a href="https://github.com/acmesh-official/acme.sh" target="_blank">acme.sh</a> & <a
+                    href="https://sslip.io" target="_blank">sslip.io</a></p>
+        </footer>
+    </div>
+
+    <script>
+        const CONFIG = window.CONFIG || { domain: 'example.com' };
+
+        // 初始化域名显示
+        document.addEventListener('DOMContentLoaded', () => {
+            // 更新所有域名占位符
+            document.querySelectorAll('.domain-example').forEach(el => {
+                el.textContent += '.' + CONFIG.domain;
+            });
+
+            // 设置私钥下载链接
+            const keyFilename = `*.${CONFIG.domain}.key`;
+            document.getElementById('key-download').href = `certs/${keyFilename}`;
+            document.getElementById('key-download').download = keyFilename;
+
+            // 加载证书信息
+            loadCertInfo();
+            // 加载 PEM 内容
+            loadPEMContent();
+        });
+
+        function convertIP() {
+            const prefix = document.getElementById('prefix').value.trim();
+            const ip = document.getElementById('ip').value.trim();
+
+            if (!ip || !/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) {
+                alert('请输入有效的 IP 地址');
+                return;
+            }
+
+            const ipPart = ip.replace(/\./g, '-');
+            const domain = prefix ? `${prefix}-${ipPart}.${CONFIG.domain}` : `${ipPart}.${CONFIG.domain}`;
+            document.getElementById('generated-domain').textContent = domain;
+        }
+
+        function copyDomain() {
+            const domain = document.getElementById('generated-domain').textContent;
+            if (domain && domain !== '-') {
+                navigator.clipboard.writeText(domain);
+                showToast('域名已复制');
+            }
+        }
+
+        async function loadCertInfo() {
+            try {
+                const resp = await fetch('certs/info.json');
+                const info = await resp.json();
+
+                document.getElementById('cert-domain').textContent = '*.' + CONFIG.domain;
+
+                if (info.notAfter) {
+                    const expiry = new Date(info.notAfter);
+                    const now = new Date();
+                    const daysLeft = Math.ceil((expiry - now) / (1000 * 60 * 60 * 24));
+
+                    let expiryText = expiry.toLocaleDateString('zh-CN', {
+                        year: 'numeric', month: 'long', day: 'numeric'
+                    });
+
+                    if (daysLeft <= 7) {
+                        expiryText += ` <span class="badge danger">即将过期</span>`;
+                    } else if (daysLeft <= 30) {
+                        expiryText += ` <span class="badge warning">${daysLeft} 天后过期</span>`;
+                    } else {
+                        expiryText += ` <span class="badge success">有效</span>`;
+                    }
+
+                    document.getElementById('cert-expiry').innerHTML = expiryText;
+                }
+            } catch (e) {
+                document.getElementById('cert-domain').textContent = '*.' + CONFIG.domain;
+                document.getElementById('cert-expiry').textContent = '无法加载';
+            }
+        }
+
+        async function loadPEMContent() {
+            const keyFilename = `*.${CONFIG.domain}.key`;
+            try {
+                const [certResp, keyResp] = await Promise.all([
+                    fetch('certs/fullchain.cer'),
+                    fetch(`certs/${keyFilename}`)
+                ]);
+
+                if (certResp.ok) {
+                    document.getElementById('cert-pem').value = await certResp.text();
+                }
+                if (keyResp && keyResp.ok) {
+                    document.getElementById('key-pem').value = await keyResp.text();
+                } else {
+                    document.getElementById('key-pem').placeholder = '无法加载私钥';
+                }
+            } catch (e) {
+                console.error('加载 PEM 内容失败:', e);
+            }
+        }
+
+        function copyPEM(type) {
+            const textarea = document.getElementById(type === 'cert' ? 'cert-pem' : 'key-pem');
+            if (textarea.value) {
+                navigator.clipboard.writeText(textarea.value);
+                showToast(type === 'cert' ? '证书已复制' : '私钥已复制');
+            }
+        }
+
+        function showToast(message) {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 2000);
+        }
+
+        // 回车触发转换
+        document.getElementById('ip')?.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') convertIP();
+        });
+    </script>
+</body>
+
+</html>

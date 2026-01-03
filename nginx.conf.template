@@ -1,0 +1,38 @@
+server {
+    listen 80;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # 静态文件缓存
+    location ~* \.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2)$ {
+        expires 7d;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # 证书文件下载 - 目录名为 *.DOMAIN_ecc
+    location /certs/ {
+        alias /certs/*.${DOMAIN}_ecc/;
+        autoindex off;
+        
+        # 允许下载的文件类型
+        location ~* \.(cer|pem|key|json)$ {
+            add_header Content-Disposition "attachment";
+            add_header Cache-Control "no-cache";
+        }
+    }
+
+    # 配置文件不缓存
+    location = /config.js {
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # 安全头
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+}

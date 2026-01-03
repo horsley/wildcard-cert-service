@@ -1,0 +1,8 @@
+# 敏感配置
+.env
+
+# 证书文件
+certs/
+
+# 运行时生成的配置
+html/config.js
