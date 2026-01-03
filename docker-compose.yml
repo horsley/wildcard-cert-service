@@ -17,8 +17,8 @@ services:
   web:
     image: nginx:alpine
     container_name: ssl-cert-web
-    ports:
-      - "80:80"
+    expose:
+      - "80"
     environment:
       - DOMAIN=${DOMAIN}
     volumes:
